@@ -1,0 +1,67 @@
+<view class="page-container">
+
+<view class="header-title-wrapper">
+  <view class="header-title">温室大棚总览</view>
+  <image class="header-logo-inline" src="/images/logo-bai.png" mode="heightFix"></image>
+</view>
+
+<view wx:if="{{isLoading}}" class="loading-container">
+  <view class="loading-text">数据加载中...</view>
+</view>
+
+<block wx:else>
+  <view wx:if="{{deviceDataList.length > 0}}" class="device-grid">
+    <view 
+      wx:for="{{deviceDataList}}" 
+      wx:key="deviceName" 
+      class="device-card"
+    >
+      <view bindtap="navigateToDetail" data-index="{{index}}">
+        <view class="card-header">
+          <view class="device-name">{{item.name}}</view>
+          <view class="device-status {{item.online_status === '在线' ? 'online' : 'offline'}}">
+             {{item.online_status}}
+          </view>
+        </view>
+        <view class="update-time">
+          数据更新于: {{item.last_updated}}
+        </view>
+        <view class="card-body">
+          <view class="data-group">
+            <view class="data-group-title">空气和光照数据</view>
+            <view class="sensor-grid">
+              <view class="sensor-item">
+                 <image src="/images/temp.png" class="sensor-icon"/>
+                <view class="sensor-text">
+                  <view class="sensor-value {{item.properties.isTempAbnormal ? 'abnormal' : ''}}">
+                    {{item.properties.Temp || 'N/A'}}
+                  </view>
+                  <view class="sensor-label">温度(℃)</view>
+                </view>
+              </view>
+              <view class="sensor-item">
+                 <image src="/images/humi.png" class="sensor-icon"/>
+                <view class="sensor-text">
+                  <view class="sensor-value {{item.properties.isHumiAbnormal ? 'abnormal' : ''}}">
+                    {{item.properties.Humi || 'N/A'}}
+                  </view>
+                  <view class="sensor-label">湿度(%)</view>
+                </view>
+              </view>
+              <view class="sensor-item"><image src="/images/light.png" class="sensor-icon"/><view class="sensor-text"><view class="sensor-value">{{item.properties.Lux || 'N/A'}}</view><view class="sensor-label">光照(Lux)</view></view></view>
+            </view>
+          </view>
+          <view class="data-group"><view class="data-group-title">土壤数据</view><view class="sensor-grid"><view class="sensor-item"><image src="/images/temp.png" class="sensor-icon"/><view class="sensor-text"><view class="sensor-value">{{item.properties.Humi1 || 'N/A'}} <text class="unit"></text></view><view class="sensor-label">温度(℃)</view></view></view><view class="sensor-item"><image src="/images/humi.png" class="sensor-icon"/><view class="sensor-text"><view class="sensor-value">{{item.properties.Temp1 || 'N/A'}} </view><view class="sensor-label">湿度(%)</view></view></view><view class="sensor-item"><image src="/images/sensor.png" class="sensor-icon"/><view class="sensor-text"><view class="sensor-value">{{item.properties.Ec || 'N/A'}}</view><view class="sensor-label">电导率(μS/cm)</view></view></view></view></view>
+        </view>
+      </view>
+      
+      <view class="data-link-button" bindtap="navigateToDataWeb">
+          查看历史数据图表
+      </view>
+      </view>
+  </view>
+  <view wx:else class="empty-container">
+    <view class="empty-text">暂无设备，请在代码中设置</view>
+  </view>
+</block>
+</view>

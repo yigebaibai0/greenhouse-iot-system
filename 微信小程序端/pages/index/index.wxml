@@ -1,0 +1,88 @@
+<view class="page-container">
+  <view class="header-container">
+    <view class="header-2"><view>{{currentDevice.name}}</view></view>
+  </view>
+  <view class="container-title">环境数据监测</view>
+  <view class="data-grid-container">
+    <view class="data-item"><view class="data-content"><image src="/images/status.png" class="data-picture"/><view class="data-text"><view class="data-title">设备状态</view><view class="data-value" style="color: {{device_online_status === '在线' ? '#28a745' : '#dc3545'}};">{{device_online_status}}</view></view></view></view>
+    <view class="data-item"><view class="data-content"><image src="/images/temp.png" class="data-picture"/><view class="data-text"><view class="data-title">空气温度</view><view class="data-value">{{device_properties.Temp || 'N/A'}} ℃</view></view></view></view>
+    <view class="data-item"><view class="data-content"><image src="/images/humi.png" class="data-picture"/><view class="data-text"><view class="data-title">空气湿度</view><view class="data-value">{{device_properties.Humi || 'N/A'}} %</view></view></view></view>
+    <view class="data-item"><view class="data-content"><image src="/images/light.png" class="data-picture"/><view class="data-text"><view class="data-title">光照 (Lux)</view><view class="data-value">{{device_properties.Lux || 'N/A'}}</view></view></view></view>
+    <view class="data-item"><view class="data-content"><image src="/images/sensor.png" class="data-picture"/><view class="data-text"><view class="data-title">电导率 (μS/cm)</view><view class="data-value">{{device_properties.Ec || 'N/A'}}</view></view></view></view>
+    <view class="data-item"><view class="data-content"><image src="/images/temp.png" class="data-picture"/><view class="data-text"><view class="data-title">土壤温度</view><view class="data-value">{{device_properties.Humi1 || 'N/A'}} ℃</view></view></view></view>
+    <view class="data-item"><view class="data-content"><image src="/images/humi.png" class="data-picture"/><view class="data-text"><view class="data-title">土壤湿度</view><view class="data-value">{{device_properties.Temp1 || 'N/A'}} %</view></view></view></view>
+
+    <view class="data-item"><view class="data-content"><image src="/images/sensor.png" class="data-picture"/><view class="data-text"><view class="data-title">Motor 1 状态</view><view class="data-value data-value-small">{{device_properties_text.motor1_text || 'N/A'}}</view></view></view></view>
+
+    <view class="data-item"><view class="data-content"><image src="/images/sensor.png" class="data-picture"/><view class="data-text"><view class="data-title">Motor 2 状态</view><view class="data-value data-value-small">{{device_properties_text.motor2_text || 'N/A'}}</view></view></view></view>
+  </view>
+
+  <view class="container-title">设备控制中心</view>
+  <view class="control-panel">
+    <view class="motor-group">
+      <view class="motor-title-container">
+        <view class="motor-title">通风口电机A 控制</view>
+        <view class="status-indicators">
+          <view class="motor-running-status running-state-{{motorA.runningState}}">{{motorA.runningStateText}}</view>
+        </view>
+      </view>
+      <view class="duration-input-group">
+        <text class="input-label">运行时长(秒):</text>
+        <input class="duration-input" type="number" value="{{motorA.duration}}" bindfocus="onDurationFocusA" bindblur="onDurationChangeConfirmA" />
+      </view>
+      <view class="button-grid">
+        <view class="btn btn-open {{(motorA.isRunning || motorB.isRunning) ? 'disabled' : ''}}" bindtap="startMotorHandler" data-motor="A" data-direction="forward">上通风口关</view>
+        <view class="btn btn-close {{motorB.isRunning ? 'disabled' : ''}}" bindtap="stopMotorHandler" data-motor="A" data-stopcmd="BB12G">上通风口关停止</view>
+        <view class="btn btn-open {{(motorA.isRunning || motorB.isRunning) ? 'disabled' : ''}}" bindtap="startMotorHandler" data-motor="A" data-direction="reverse">上通风口开</view>
+        <view class="btn btn-close {{motorB.isRunning ? 'disabled' : ''}}" bindtap="stopMotorHandler" data-motor="A" data-stopcmd="DD12G">上通风口开停止</view>
+      </view>
+
+      <view class="progress-labels">
+        <text>全关 (0%)</text>
+        <text>全开 (100%)</text>
+      </view>
+      <view class="progress-percentage">
+        <text>{{motorA.progress}}%</text>
+      </view>
+      <progress class="progress-bar" percent="{{motorA.progress}}" stroke-width="8" activeColor="#3d7ef9" backgroundColor="#e9e9e9" />
+    
+      <view class="calibrate-controls">
+        <view class="calibrate-btn" bindtap="onCalibrate" data-motor="A" data-position="0">校准：设为全关(0%)</view>
+        <view class="calibrate-btn" bindtap="onCalibrate" data-motor="A" data-position="100">校准：设为全开(100%)</view>
+      </view>
+    </view>
+    
+    <view class="motor-group">
+      <view class="motor-title-container">
+        <view class="motor-title">通风口电机B 控制</view>
+        <view class="status-indicators">
+          <view class="motor-running-status running-state-{{motorB.runningState}}">{{motorB.runningStateText}}</view>
+        </view>
+      </view>
+      <view class="duration-input-group">
+        <text class="input-label">运行时长(秒):</text>
+        <input class="duration-input" type="number" value="{{motorB.duration}}" bindfocus="onDurationFocusB" bindblur="onDurationChangeConfirmB" />
+      </view>
+      <view class="button-grid">
+        <view class="btn btn-open {{(motorA.isRunning || motorB.isRunning) ? 'disabled' : ''}}" bindtap="startMotorHandler" data-motor="B" data-direction="forward">下通风口关</view>
+        <view class="btn btn-close {{motorA.isRunning ? 'disabled' : ''}}" bindtap="stopMotorHandler" data-motor="B" data-stopcmd="FF12G">下通风口关停止</view>
+        <view class="btn btn-open {{(motorA.isRunning || motorB.isRunning) ? 'disabled' : ''}}" bindtap="startMotorHandler" data-motor="B" data-direction="reverse">下通风口开</view>
+        <view class="btn btn-close {{motorA.isRunning ? 'disabled' : ''}}" bindtap="stopMotorHandler" data-motor="B" data-stopcmd="HH12G">下通风口开停止</view>
+      </view>
+      
+      <view class="progress-labels">
+        <text>全关 (0%)</text>
+        <text>全开 (100%)</text>
+      </view>
+      <view class="progress-percentage">
+        <text>{{motorB.progress}}%</text>
+      </view>
+      <progress class="progress-bar" percent="{{motorB.progress}}" stroke-width="8" activeColor="#3d7ef9" backgroundColor="#e9e9e9" />
+
+      <view class="calibrate-controls">
+        <view class="calibrate-btn" bindtap="onCalibrate" data-motor="B" data-position="0">校准：设为全关(0%)</view>
+        <view class="calibrate-btn" bindtap="onCalibrate" data-motor="B" data-position="100">校准：设为全开(100%)</view>
+      </view>
+    </view>
+  </view>
+</view>

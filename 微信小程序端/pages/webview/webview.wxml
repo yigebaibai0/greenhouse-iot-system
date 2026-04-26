@@ -1,0 +1,25 @@
+<!-- pages/webview/webview.wxml -->
+
+<view class="container">
+  <view class="card">
+    <!-- --- 修改：不再引用本地图片，而是直接使用Base64内联SVG图标 --- -->
+    <!-- 这样做可以确保图标永远不会加载失败 -->
+    <image class="icon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM4ODgiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIj48L2NpcmNsZT48bGluZSB4MT0iMiIgeTE9IjEyIiB4Mj0iMjIiIHkyPSIxMiI+PC9saW5lPjxwYXRoIGQ9Ik0xMiAyYTE1LjMgMTUuMyAwIDAgMSA0IDEwIDE1LjMyIDE1LjMyIDAgMCAxLTQgMTAgMTUuMyAxNSLjMyIDAgMCAxLTQtMTAwIDE1LjMyIDE1LjMyIDAgMCAxIDQtMTB6Ij48L3BhdGg+PC9zdmc+"></image>
+    
+    <view class="title">无法直接打开页面</view>
+    <view class="description">由于平台限制，请复制链接后，在手机浏览器中粘贴并打开查看。</view>
+    
+    <view class="url-box">
+      <text class="url-text" selectable="true">{{url}}</text>
+    </view>
+    
+    <button class="copy-btn" bindtap="copyUrl">一键复制链接</button>
+
+    <view class="steps">
+        <view class="step-item">1. 点击上方按钮复制链接</view>
+        <view class="step-item">2. 退出小程序，打开手机浏览器</view>
+        <view class="step-item">3. 在浏览器地址栏粘贴并访问</view>
+    </view>
+  </view>
+</view>
+

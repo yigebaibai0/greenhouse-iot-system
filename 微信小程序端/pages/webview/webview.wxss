@@ -1,0 +1,97 @@
+/* pages/webview/webview.wxss */
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f4f6f8;
+    padding: 40rpx;
+    box-sizing: border-box;
+  }
+  
+  .card {
+    width: 100%;
+    max-width: 600rpx;
+    background-color: #ffffff;
+    border-radius: 24rpx;
+    box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.08);
+    padding: 60rpx 40rpx;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+  }
+  
+  .icon {
+    width: 120rpx;
+    height: 120rpx;
+    margin-bottom: 30rpx;
+    opacity: 0.8;
+  }
+  
+  .title {
+    font-size: 36rpx;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 20rpx;
+  }
+  
+  .description {
+    font-size: 28rpx;
+    color: #888;
+    text-align: center;
+    margin-bottom: 40rpx;
+    line-height: 1.6;
+  }
+  
+  .url-box {
+    width: 100%;
+    background-color: #f7f7f7;
+    padding: 20rpx;
+    border-radius: 12rpx;
+    margin-bottom: 40rpx;
+    box-sizing: border-box;
+    border: 1rpx solid #eee;
+  }
+  
+  .url-text {
+    font-size: 26rpx;
+    color: #555;
+    word-break: break-all;
+    text-align: center;
+    display: block;
+  }
+  
+  .copy-btn {
+    width: 100%;
+    height: 90rpx;
+    /* --- 核心修改：使用 Flexbox 实现更可靠的垂直居中 --- */
+    display: flex;
+    align-items: center; /* 垂直居中 */
+    justify-content: center; /* 水平居中 */
+    /* line-height: 90rpx; -- 不再需要这一行 */
+    background-color: #007aff;
+    color: white;
+    font-size: 32rpx;
+    border-radius: 16rpx;
+    border: none;
+    margin-bottom: 50rpx;
+  }
+  
+  .copy-btn::after {
+    border: none;
+  }
+  
+  .steps {
+    width: 100%;
+    font-size: 24rpx;
+    color: #aaa;
+    line-height: 1.8;
+  }
+  
+  .step-item {
+    text-align: left;
+  }
+  
+  
