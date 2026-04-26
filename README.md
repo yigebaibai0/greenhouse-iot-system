@@ -2,7 +2,6 @@
 
 一套基于微信小程序 + Node.js 后端的温室大棚远程监控系统。支持多设备管理、通风口电机控制、传感器数据采集、WebSocket 实时状态推送等功能。
 
-[English](README_en.md) | 中文
 
 ---
 
@@ -24,7 +23,7 @@
 
 ## 网页端界面展示
 <img width="955" height="955" alt="image" src="https://github.com/user-attachments/assets/389df5bb-7d01-4f59-8afe-18c713b64cb2" />
-<img width="955" height="955" alt="image" src="https://github.com/user-attachments/assets/214e2832-6809-4420-8d46-f873778d2ccd" />
+<img width="948" height="908" alt="image" src="https://github.com/user-attachments/assets/c9de3709-3206-48ca-a508-7dc871cccc88" />
 
 ## 系统架构
 
