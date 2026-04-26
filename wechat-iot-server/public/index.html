@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能大棚监控与审计面板</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/cdn.min.js"></script>
+    <style>
+        /* --- 调色板定义 (Vivid & Clean) --- */
+        :root {
+            /* 主色系 */
+            --primary: #3b82f6;       /* 亮蓝 */
+            --primary-dark: #2563eb;
+            --bg-body: #f8f9fc;       /* 极淡的蓝灰背景 */
+            --bg-card: #ffffff;
+            
+            /* 文字颜色 */
+            --text-main: #1e293b;     /* 深蓝黑 */
+            --text-secondary: #64748b;/* 蓝灰色 */
+            
+            /* 边框 */
+            --border: #e2e8f0;
+            
+            /* 功能色 */
+            --status-green: #10b981;  /* 开运行 */
+            --status-orange: #f97316; /* 关运行 */
+            --status-gray: #64748b;   /* 停止 */
+            --status-cyan: #06b6d4;   /* 校准 */
+            
+            /* 通风口专属色 */
+            --vent-upper: #7c3aed;    /* 上通风口 - 紫色 */
+            --vent-lower: #0284c7;    /* 下通风口 - 蓝色 */
+
+            /* 阴影 */
+            --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            --shadow-badge: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            margin: 0;
+            padding: 24px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            flex-grow: 1;
+        }
+
+        /* --- 头部设计 --- */
+        .page-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .page-header h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary) 0%, #2563eb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 0 8px 0;
+            letter-spacing: -0.5px;
+        }
+        .page-header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        /* --- 卡片风格 --- */
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            box-shadow: var(--shadow-card);
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255,255,255,0.8);
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary) 0%, #a855f7 100%);
+            opacity: 0.8;
+        }
+
+        .card-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin: 0 0 20px 0;
+            display: flex;
+            align-items: center;
+        }
+        .card-title svg { margin-right: 8px; color: var(--primary); }
+
+        /* --- 筛选控件 --- */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            align-items: end;
+        }
+        .control-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            background-color: #fcfcfc;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            background-color: #fff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        /* --- 按钮 --- */
+        .buttons-group { display: flex; gap: 12px; }
+        button {
+            flex: 1;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #queryBtn {
+            background: linear-gradient(145deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+        }
+        #queryBtn:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3); }
+        #exportBtn { background-color: white; border: 1px solid #10b981; color: #10b981; }
+        #exportBtn:hover { background-color: #ecfdf5; }
+
+        /* --- 表格 --- */
+        .table-container {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .table-responsive-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th {
+            background-color: #f1f5f9;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            padding: 12px 16px;
+            text-align: left;
+        }
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-main);
+            vertical-align: middle;
+        }
+        tbody tr:nth-child(even) { background-color: #f8fafc; }
+        tbody tr:hover { background-color: #f1f5f9; }
+
+        /* --- 【前端优化核心】操作日志样式 --- */
+        
+        /* 通风口标签 */
+        .vent-badge {
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin-right: 6px;
+            font-size: 0.85rem;
+            display: inline-block;
+        }
+        .vent-upper { color: var(--vent-upper); background: #f3e8ff; border: 1px solid #d8b4fe; }
+        .vent-lower { color: var(--vent-lower); background: #e0f2fe; border: 1px solid #bae6fd; }
+
+        /* 状态徽章 */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: white;
+            margin-right: 8px;
+            box-shadow: var(--shadow-badge);
+        }
+        .bg-open-run { background: linear-gradient(135deg, #10b981, #059669); }
+        .bg-close-run { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .bg-stop { background: #64748b; }
+        .bg-calib { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+
+        /* 操作类型图标与文字 */
+        .action-icon { margin-right: 6px; font-size: 1.1em; }
+        .action-text { font-weight: 600; margin-right: 10px; color: var(--text-main); }
+        
+        /* 辅助信息（时长、百分比） */
+        .meta-info {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* IP 样式 */
+        .log-ip {
+            font-family: 'Monaco', monospace;
+            color: #64748b;
+            font-size: 0.8rem;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* 分页控件 */
+        .pagination-controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .pagination-controls button {
+            background: white;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            width: auto;
+            flex: none;
+        }
+        .pagination-controls button:hover:not(:disabled) {
+            background-color: #f1f5f9;
+        }
+        .pagination-controls button:disabled {
+            color: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 12px; }
+            .card { padding: 16px; }
+            .controls-grid { grid-template-columns: 1fr; }
+            #chartContainer { height: 300px; }
+            /* 移动端日志优化 */
+            .log-ip { display: none; } /* 手机上隐藏IP节省空间 */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-wrapper">
+        <div class="page-header">
+            <h1>智能大棚监控与审计面板</h1>
+            <p>实时环境监测 · 自动化控制 · 全程操作追溯</p>
+        </div>
+
+        <div class="card">
+            <h3 class="card-title">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                数据筛选
+            </h3>
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label>开始日期</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="control-group">
+                    <label>结束日期</label>
+                    <input type="date" id="endDate">
+                </div>
+                <div class="control-group">
+                    <label>选择设备</label>
+                    <select id="deviceSelect"><option value="">所有设备</option></select>
+                </div>
+                <div class="control-group">
+                    <label>传感器类型</label>
+                    <select id="identifierSelect"><option value="">所有传感器</option></select>
+                </div>
+                <div class="control-group" style="justify-content: flex-end;">
+                    <div class="buttons-group">
+                        <button id="queryBtn">
+                            <svg width="16" height="16" style="margin-right:6px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            查询数据
+                        </button>
+                        <button id="exportBtn">
+                            <svg width="16" height="16" style="margin-right:6px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            导出
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="card-title">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                数据趋势
+            </h3>
+            <div id="chartContainer" style="height: 400px; position: relative;">
+                <canvas id="dataChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="card-title">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                详细数据
+            </h3>
+            <div class="table-container">
+                <div class="table-responsive-wrapper">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>设备名称</th>
+                                <th>传感器类型</th>
+                                <th>数值</th>
+                                <th>采集时间</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="pagination-controls">
+                <button id="prevBtn" disabled>上一页</button>
+                <span id="pageInfo" style="line-height: 38px;"></span>
+                <button id="nextBtn" disabled>下一页</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="card-title">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                操作审计日志
+            </h3>
+            <div class="table-container">
+                <div class="table-responsive-wrapper">
+                    <table id="logTable">
+                        <thead>
+                            <tr>
+                                <th width="180">操作时间</th>
+                                <th width="140">操作来源 (IP)</th>
+                                <th width="180">设备名称</th>
+                                <th>指令执行详情</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-secondary);">点击上方“查询数据”按钮加载日志...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="pagination-controls">
+                <button id="prevLogBtn" disabled>上一页</button>
+                <span id="logPageInfo" style="line-height: 38px;"></span>
+                <button id="nextLogBtn" disabled>下一页</button>
+            </div>
+        </div>
+
+        <footer class="footer" style="text-align: center; margin-top: 40px; color: var(--text-secondary); font-size: 0.85rem;">
+            <p>温室大棚物联网管理系统 · 欢迎使用</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- 详细数据分页变量 ---
+        let fullData = [];
+        let currentPage = 1;
+        const rowsPerPage = 15;
+
+        // --- [新增] 日志分页变量 ---
+        let fullLogs = [];       // 存储所有日志
+        let currentLogPage = 1;  // 当前日志页码
+        const logsPerPage = 10;  // 每页显示10条日志，防止页面过长
+
+        const SENSOR_IDENTIFIERS = ["Temp", "Humi", "Lux", "Ec", "Temp1", "Humi1"];
+        const SENSOR_NAMES = { "Temp": "空气温度", "Humi": "空气湿度", "Lux": "光照强度", "Ec": "土壤电导率", "Temp1": "土壤湿度", "Humi1": "土壤温度" };
+        const SENSOR_UNITS = { "Temp": "℃", "Humi": "%", "Lux": "lux", "Ec": "μs/cm", "Temp1": "℃", "Humi1": "%" };
+        const DEVICE_NAME_MAP = { "MY4G": "一号智能大棚", "MY4G2": "二号智能大棚", "MY4G3": "三号智能大棚", "MY4G4": "四号智能大棚" };
+
+        // ⚠️ 部署后请替换为你的服务器地址
+        const getBaseUrl = () => {
+            const { protocol } = window.location;
+            if (protocol === 'blob:' || protocol === 'file:') return 'http://YOUR_SERVER_IP:8081';
+            return '';
+        };
+        const API_BASE_URL = getBaseUrl();
+        let dataChart = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            initializeControls();
+            
+            document.getElementById('queryBtn').addEventListener('click', () => {
+                fetchSensorDataAndRender();
+                fetchLogsAndRender(); 
+            });
+            document.getElementById('exportBtn').addEventListener('click', exportData);
+            
+            // 详细数据表格分页事件
+            document.getElementById('prevBtn').addEventListener('click', () => changePage(-1));
+            document.getElementById('nextBtn').addEventListener('click', () => changePage(1));
+
+            // [新增] 日志表格分页事件
+            document.getElementById('prevLogBtn').addEventListener('click', () => changeLogPage(-1));
+            document.getElementById('nextLogBtn').addEventListener('click', () => changeLogPage(1));
+
+            fetchSensorDataAndRender();
+            fetchLogsAndRender();
+        });
+
+        function fetchLogsAndRender() {
+            const params = getFilterParams();
+            fetch(`${API_BASE_URL}/api/logs?${params}`)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        // [修改] 获取到数据后先存储，重置页码，再进行分页显示
+                        fullLogs = result.data; 
+                        currentLogPage = 1;
+                        displayCurrentLogPage();
+                    } else {
+                        console.error('获取日志失败:', result.message);
+                    }
+                })
+                .catch(err => console.error('Log API Error:', err));
+        }
+
+        // --- [新增] 日志分页核心逻辑 ---
+        function displayCurrentLogPage() {
+            const startIndex = (currentLogPage - 1) * logsPerPage;
+            const endIndex = startIndex + logsPerPage;
+            
+            // 截取当前页需要的数据
+            const paginatedLogs = fullLogs.slice(startIndex, endIndex);
+            
+            renderLogTable(paginatedLogs);
+            updateLogPaginationControls();
+        }
+
+        function changeLogPage(delta) {
+            const totalPages = Math.ceil(fullLogs.length / logsPerPage);
+            const newPage = currentLogPage + delta;
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentLogPage = newPage;
+                displayCurrentLogPage();
+            }
+        }
+
+        function updateLogPaginationControls() {
+            const pageInfo = document.getElementById('logPageInfo');
+            const totalPages = Math.ceil(fullLogs.length / logsPerPage);
+            
+            // 更新页码文字
+            pageInfo.textContent = totalPages > 0 ? `第 ${currentLogPage} 页 / 共 ${totalPages} 页` : '无数据';
+            
+            // 更新按钮禁用状态
+            document.getElementById('prevLogBtn').disabled = currentLogPage === 1;
+            document.getElementById('nextLogBtn').disabled = currentLogPage >= totalPages;
+        }
+        // -----------------------------
+
+        // --- 【核心优化】日志渲染逻辑 ---
+        function renderLogTable(logs) {
+            const tbody = document.getElementById('logTable').querySelector('tbody');
+            tbody.innerHTML = '';
+
+            if (!logs || logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:30px; color: var(--text-secondary);">该时间段内无操作日志</td></tr>';
+                return;
+            }
+
+            logs.forEach(log => {
+                const tr = document.createElement('tr');
+                const deviceName = DEVICE_NAME_MAP[log.deviceName] || log.deviceName;
+                
+                // 1. 分析操作类型图标
+                let icon = '📝';
+                if (log.action.includes('启动')) icon = '🚀';
+                else if (log.action.includes('停止')) icon = '🛑';
+                else if (log.action.includes('校准')) icon = '🔧';
+                else if (log.action.includes('系统')) icon = '🛡️';
+
+                // 2. 解析详情 (通风口 + 动作 + 额外信息)
+                let detailHtml = '';
+                const details = log.details || '';
+                
+                // 提取通风口
+                let ventBadge = '';
+                if (details.includes('上通风口')) ventBadge = '<span class="vent-badge vent-upper">上通风口</span>';
+                else if (details.includes('下通风口')) ventBadge = '<span class="vent-badge vent-lower">下通风口</span>';
+
+                // 提取动作徽章
+                let statusBadge = '';
+                let actionText = '';
+                
+                if (details.includes('开运行')) { statusBadge = 'bg-open-run'; actionText = '开运行'; }
+                else if (details.includes('关运行')) { statusBadge = 'bg-close-run'; actionText = '关运行'; }
+                else if (details.includes('开停止')) { statusBadge = 'bg-stop'; actionText = '开停止'; }
+                else if (details.includes('关停止')) { statusBadge = 'bg-stop'; actionText = '关停止'; }
+                else if (details.includes('校准')) { statusBadge = 'bg-calib'; actionText = '强制校准'; }
+
+                const badgeHtml = actionText ? `<span class="status-badge ${statusBadge}">${actionText}</span>` : '';
+
+                // 提取额外信息 (时长/百分比) - 用正则提取括号里的内容或 % 数值
+                let metaInfo = '';
+                const durationMatch = details.match(/时长\d+秒/);
+                const percentMatch = details.match(/\d+%/);
+                
+                if (durationMatch) {
+                    metaInfo = `<span class="meta-info">⏱ ${durationMatch[0]}</span>`;
+                } else if (percentMatch) {
+                    metaInfo = `<span class="meta-info">🎯 位置:${percentMatch[0]}</span>`;
+                }
+
+                // 组合最终 HTML
+                if (ventBadge || badgeHtml) {
+                    detailHtml = `
+                        <span class="action-icon">${icon}</span>
+                        ${ventBadge}
+                        ${badgeHtml}
+                        ${metaInfo}
+                    `;
+                } else {
+                    detailHtml = `<span class="action-icon">${icon}</span> <span style="color:var(--text-main)">${details}</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td>${new Date(log.timestamp).toLocaleString('zh-CN', {hour12: false})}</td>
+                    <td><span class="log-ip">${log.ip === '::1' || log.ip === '127.0.0.1' ? 'Localhost' : log.ip}</span></td>
+                    <td style="font-weight:600; color:#334155;">${deviceName}</td>
+                    <td>${detailHtml}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        // ------------------------------------
+
+        async function initializeControls() {
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            const deviceSelect = document.getElementById('deviceSelect');
+            const identifierSelect = document.getElementById('identifierSelect');
+
+            const today = new Date();
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(today.getDate() - 7);
+            endDateInput.value = today.toISOString().split('T')[0];
+            startDateInput.value = sevenDaysAgo.toISOString().split('T')[0];
+
+            SENSOR_IDENTIFIERS.forEach(id => {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = SENSOR_NAMES[id] || id;
+                identifierSelect.appendChild(option);
+            });
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/devices`);
+                const result = await response.json();
+                if (result.success) {
+                    result.data.forEach(deviceName => {
+                        const option = document.createElement('option');
+                        option.value = deviceName; 
+                        option.textContent = DEVICE_NAME_MAP[deviceName] || deviceName;
+                        deviceSelect.appendChild(option);
+                    });
+                }
+            } catch (error) { console.error("设备列表加载失败:", error); }
+        }
+
+        function getFilterParams() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const deviceName = document.getElementById('deviceSelect').value;
+            const identifier = document.getElementById('identifierSelect').value;
+            const fullEndDate = endDate ? `${endDate}T23:59:59` : '';
+            const params = new URLSearchParams({ startDate: startDate, endDate: fullEndDate });
+            if (deviceName) params.append('deviceName', deviceName);
+            if (identifier) params.append('identifier', identifier);
+            return params.toString();
+        }
+
+        function fetchSensorDataAndRender() {
+            const params = getFilterParams();
+            fetch(`${API_BASE_URL}/api/data?${params}`)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        renderChart(result.data);
+                        fullData = result.data.reverse(); 
+                        currentPage = 1; 
+                        displayCurrentPage();
+                    } else { alert('查询数据失败: ' + result.message); }
+                })
+                .catch(err => { console.error('Fetch Error:', err); });
+        }
+
+        function displayCurrentPage() {
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const paginatedData = fullData.slice(startIndex, endIndex);
+            renderTable(paginatedData);
+            updatePaginationControls();
+        }
+
+        function changePage(delta) {
+            const totalPages = Math.ceil(fullData.length / rowsPerPage);
+            const newPage = currentPage + delta;
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                displayCurrentPage();
+            }
+        }
+
+        function updatePaginationControls() {
+            const pageInfo = document.getElementById('pageInfo');
+            const totalPages = Math.ceil(fullData.length / rowsPerPage);
+            pageInfo.textContent = totalPages > 0 ? `第 ${currentPage} 页 / 共 ${totalPages} 页` : '无数据';
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        }
+
+        function exportData() {
+            window.location.href = `${API_BASE_URL}/api/export?${getFilterParams()}`;
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+            if (dataChart) dataChart.destroy();
+            const selectedIdentifier = document.getElementById('identifierSelect').value;
+            const yAxisTitle = selectedIdentifier ? `${SENSOR_NAMES[selectedIdentifier] || selectedIdentifier} (${SENSOR_UNITS[selectedIdentifier] || ''})` : '数值';
+
+            const datasets = {};
+            data.forEach(row => {
+                const deviceName = DEVICE_NAME_MAP[row.deviceName] || row.deviceName;
+                const sensorName = SENSOR_NAMES[row.identifier] || row.identifier;
+                const key = `${deviceName} - ${sensorName}`; 
+                if (!datasets[key]) datasets[key] = { label: key, data: [], borderColor: getRandomColor(), tension: 0.3, fill: false, pointRadius: 2, borderWidth: 2 };
+                datasets[key].data.push({ x: row.timestamp, y: row.value });
+            });
+
+            dataChart = new Chart(ctx, {
+                type: 'line', data: { datasets: Object.values(datasets) },
+                options: {
+                    responsive: true, maintainAspectRatio: false, 
+                    scales: {
+                        x: { type: 'timeseries', time: { unit: 'hour', tooltipFormat: 'yyyy-MM-dd HH:mm:ss', displayFormats: { hour: 'MM-dd HH:mm' }}, title: { display: false }, grid: { display: false } },
+                        y: { title: { display: true, text: yAxisTitle }, grid: { borderDash: [5, 5], color: '#f1f5f9' } }
+                    },
+                    plugins: {
+                        legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 6, font: { family: 'Inter', size: 11 } } }
+                    },
+                    interaction: { mode: 'index', intersect: false }
+                }
+            });
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('dataTable').querySelector('tbody');
+            tbody.innerHTML = ''; 
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:30px; color:var(--text-secondary);">没有找到数据</td></tr>';
+                return;
+            }
+            data.forEach(row => {
+                const deviceName = DEVICE_NAME_MAP[row.deviceName] || row.deviceName;
+                const unit = SENSOR_UNITS[row.identifier] || '';
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight:500;">${deviceName}</td>
+                        <td>${SENSOR_NAMES[row.identifier] || row.identifier}</td>
+                        <td style="font-weight:600; color:var(--text-main);">${row.value} <span style="font-weight:400;color:var(--text-secondary);font-size:0.85em;">${unit}</span></td>
+                        <td>${new Date(row.timestamp).toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function getRandomColor() {
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+    </script>
+</body>
+</html>

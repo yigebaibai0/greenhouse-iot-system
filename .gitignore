@@ -1,0 +1,26 @@
+# Dependencies
+wechat-iot-server/node_modules/
+
+# Database
+wechat-iot-server/*.db
+wechat-iot-server/*.db-shm
+wechat-iot-server/*.db-wal
+
+# Logs
+*.log
+npm-debug.log*
+pm2 logs
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# WeChat miniprogram dependencies
+微信小程序端/node_modules/
+
+# Claude Code settings
+.claude/
+
+# Environment
+.env
+.env.local
