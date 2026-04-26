@@ -19,8 +19,13 @@
 
 ---
 
-## 界面展示
+## 微信小程序端界面展示
 <img width="347" height="776" alt="image" src="https://github.com/user-attachments/assets/6364bdb4-1a73-4b1d-9518-fb64b35c2ed9" />
+<img width="348" height="769" alt="image" src="https://github.com/user-attachments/assets/c70dcf4d-58dd-46d0-ae60-7fd1bcbd3fba" />
+<img width="353" height="773" alt="image" src="https://github.com/user-attachments/assets/4abaab86-695d-4687-a103-8bec175e2439" />
+## 网页端界面展示
+<img width="955" height="955" alt="image" src="https://github.com/user-attachments/assets/389df5bb-7d01-4f59-8afe-18c713b64cb2" />
+<img width="955" height="955" alt="image" src="https://github.com/user-attachments/assets/214e2832-6809-4420-8d46-f873778d2ccd" />
 
 ## 系统架构
 
