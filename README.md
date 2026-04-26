@@ -19,6 +19,9 @@
 
 ---
 
+## 界面展示
+<img width="347" height="776" alt="image" src="https://github.com/user-attachments/assets/6364bdb4-1a73-4b1d-9518-fb64b35c2ed9" />
+
 ## 系统架构
 
 ```
