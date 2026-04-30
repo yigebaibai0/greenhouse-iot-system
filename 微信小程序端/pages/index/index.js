@@ -1,8 +1,7 @@
 const { config, devices } = require('../../utils/config.js');
 const util = require('../../utils/util.js');
 
-// ⚠️ 部署后请替换为你的服务器地址（注意：必须是 wss:// 如果服务器启用了 SSL，否则用 ws://）
-const WS_URL = 'ws://YOUR_SERVER_IP:8081'; 
+const WS_URL = config.ws_url || config.server_base_url.replace('http', 'ws');
 
 
 const FEEDBACK_MAP = {
@@ -182,10 +181,50 @@ Page({
     onDurationFocusA(e) { this.setData({ tempDurationA: this.data.motorA.duration }); },
     onDurationFocusB(e) { this.setData({ tempDurationB: this.data.motorB.duration }); },
     onDurationChangeConfirmA(e) {
-        const newDuration = Number(e.detail.value) || 0; const oldDuration = this.data.tempDurationA; if (newDuration === oldDuration) return; if (newDuration <= 0) { wx.showToast({ title: '时长需>0', icon: 'none' }); this.setData({ 'motorA.duration': oldDuration }); return; } wx.showModal({ title: '确认修改', content: `电机A时长改为 ${newDuration} 秒?`, success: (res) => { if (res.confirm) { this.setData({ 'motorA.duration': newDuration }); wx.setStorageSync(`${this.data.currentDevice.deviceName}_motorADuration`, newDuration); wx.showToast({ title: '修改成功', icon: 'success' }); } else if (res.cancel) { this.setData({ 'motorA.duration': oldDuration }); } } });
+        const newDuration = Number(e.detail.value) || 0;
+        const oldDuration = this.data.tempDurationA;
+        if (newDuration === oldDuration) return;
+        if (newDuration <= 0) {
+            wx.showToast({ title: '时长需>0', icon: 'none' });
+            this.setData({ 'motorA.duration': oldDuration });
+            return;
+        }
+        wx.showModal({
+            title: '确认修改',
+            content: `电机A时长改为 ${newDuration} 秒?`,
+            success: (res) => {
+                if (res.confirm) {
+                    this.setData({ 'motorA.duration': newDuration });
+                    wx.setStorageSync(`${this.data.currentDevice.deviceName}_motorADuration`, newDuration);
+                    wx.showToast({ title: '修改成功', icon: 'success' });
+                } else {
+                    this.setData({ 'motorA.duration': oldDuration });
+                }
+            }
+        });
     },
     onDurationChangeConfirmB(e) {
-        const newDuration = Number(e.detail.value) || 0; const oldDuration = this.data.tempDurationB; if (newDuration === oldDuration) return; if (newDuration <= 0) { wx.showToast({ title: '时长需>0', icon: 'none' }); this.setData({ 'motorB.duration': oldDuration }); return; } wx.showModal({ title: '确认修改', content: `电机B时长改为 ${newDuration} 秒?`, success: (res) => { if (res.confirm) { this.setData({ 'motorB.duration': newDuration }); wx.setStorageSync(`${this.data.currentDevice.deviceName}_motorBDuration`, newDuration); wx.showToast({ title: '修改成功', icon: 'success' }); } else if (res.cancel) { this.setData({ 'motorB.duration': oldDuration }); } } });
+        const newDuration = Number(e.detail.value) || 0;
+        const oldDuration = this.data.tempDurationB;
+        if (newDuration === oldDuration) return;
+        if (newDuration <= 0) {
+            wx.showToast({ title: '时长需>0', icon: 'none' });
+            this.setData({ 'motorB.duration': oldDuration });
+            return;
+        }
+        wx.showModal({
+            title: '确认修改',
+            content: `电机B时长改为 ${newDuration} 秒?`,
+            success: (res) => {
+                if (res.confirm) {
+                    this.setData({ 'motorB.duration': newDuration });
+                    wx.setStorageSync(`${this.data.currentDevice.deviceName}_motorBDuration`, newDuration);
+                    wx.showToast({ title: '修改成功', icon: 'success' });
+                } else {
+                    this.setData({ 'motorB.duration': oldDuration });
+                }
+            }
+        });
     },
 
     updateAllDeviceData(properties) {
@@ -371,7 +410,21 @@ Page({
     },
     
     onCalibrate(event) {
-        const { motor, position } = event.currentTarget.dataset; const motorState = motor === 'A' ? this.data.motorA : this.data.motorB; const positionText = position === '0' ? '全关(0%)' : '全开(100%)'; const motorName = motor === 'A' ? '电机A' : '电机B'; if (motorState.isRunning) { wx.showToast({ title: '运行中无法校准', icon: 'none' }); return; } wx.showModal({ title: '确认校准', content: `强制设 ${motorName} 为 ${positionText}?`, success: (res) => { if (res.confirm) this.sendCalibrationRequest(motor, position); } });
+        const { motor, position } = event.currentTarget.dataset;
+        const motorState = motor === 'A' ? this.data.motorA : this.data.motorB;
+        const positionText = position === '0' ? '全关(0%)' : '全开(100%)';
+        const motorName = motor === 'A' ? '电机A' : '电机B';
+        if (motorState.isRunning) {
+            wx.showToast({ title: '运行中无法校准', icon: 'none' });
+            return;
+        }
+        wx.showModal({
+            title: '确认校准',
+            content: `强制设 ${motorName} 为 ${positionText}?`,
+            success: (res) => {
+                if (res.confirm) this.sendCalibrationRequest(motor, position);
+            }
+        });
     },
     
     sendCalibrationRequest(motor, position) {

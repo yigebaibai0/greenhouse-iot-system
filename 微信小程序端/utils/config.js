@@ -16,6 +16,7 @@ const devices = [
     // ⚠️ 部署后请替换为你的服务器地址
     // 格式: http://你的服务器IP:端口号 (注意 http 不是 https，除非你配置了SSL)
     server_base_url: "http://YOUR_SERVER_IP:8081",
+    ws_url: "ws://YOUR_SERVER_IP:8081",
     web_url: "http://YOUR_SERVER_IP:8081"
   };
 

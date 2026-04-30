@@ -120,15 +120,10 @@ padding: 8rpx 16rpx;
 }
 
 /* --- 【新增】--- */
-/* 用于在"环境数据监测"中显示长文本状态，而不会破坏布局 */
+/* 用于在"环境数据监测"中显示长文本状态 */
 .data-item .data-value.data-value-small {
-  font-size: 32rpx; /* 字体缩小 */
-  font-weight: bold; /* 保持粗体 */
-  white-space: normal; /* 允许换行 */
-  line-height: 1.3; /* 调整行高 */
-  /* 调整 data-text 的 white-space 以便 data-title 正常显示 */
-  /* (经检查, data-text 已有 white-space: nowrap, 这很好, 
-     但 data-value 需要覆盖它) */
-  white-space: normal; 
+  font-size: 32rpx;
+  font-weight: bold;
+  white-space: normal;
+  line-height: 1.3;
 }
-/* --- 【新增结束】--- */

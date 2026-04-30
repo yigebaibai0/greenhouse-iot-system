@@ -9,8 +9,8 @@
     <view class="data-item"><view class="data-content"><image src="/images/humi.png" class="data-picture"/><view class="data-text"><view class="data-title">空气湿度</view><view class="data-value">{{device_properties.Humi || 'N/A'}} %</view></view></view></view>
     <view class="data-item"><view class="data-content"><image src="/images/light.png" class="data-picture"/><view class="data-text"><view class="data-title">光照 (Lux)</view><view class="data-value">{{device_properties.Lux || 'N/A'}}</view></view></view></view>
     <view class="data-item"><view class="data-content"><image src="/images/sensor.png" class="data-picture"/><view class="data-text"><view class="data-title">电导率 (μS/cm)</view><view class="data-value">{{device_properties.Ec || 'N/A'}}</view></view></view></view>
-    <view class="data-item"><view class="data-content"><image src="/images/temp.png" class="data-picture"/><view class="data-text"><view class="data-title">土壤温度</view><view class="data-value">{{device_properties.Humi1 || 'N/A'}} ℃</view></view></view></view>
-    <view class="data-item"><view class="data-content"><image src="/images/humi.png" class="data-picture"/><view class="data-text"><view class="data-title">土壤湿度</view><view class="data-value">{{device_properties.Temp1 || 'N/A'}} %</view></view></view></view>
+    <view class="data-item"><view class="data-content"><image src="/images/temp.png" class="data-picture"/><view class="data-text"><view class="data-title">土壤温度</view><view class="data-value">{{device_properties.Temp1 || 'N/A'}} ℃</view></view></view></view>
+    <view class="data-item"><view class="data-content"><image src="/images/humi.png" class="data-picture"/><view class="data-text"><view class="data-title">土壤湿度</view><view class="data-value">{{device_properties.Humi1 || 'N/A'}} %</view></view></view></view>
 
     <view class="data-item"><view class="data-content"><image src="/images/sensor.png" class="data-picture"/><view class="data-text"><view class="data-title">Motor 1 状态</view><view class="data-value data-value-small">{{device_properties_text.motor1_text || 'N/A'}}</view></view></view></view>
 

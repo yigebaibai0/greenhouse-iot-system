@@ -141,11 +141,26 @@
   
 .loading-container, .empty-container {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   height: 400rpx;
   color: #999;
   font-size: 28rpx;
+}
+
+.loading-spinner {
+  width: 48rpx;
+  height: 48rpx;
+  border: 4rpx solid #e2e8f0;
+  border-top-color: #3d7ef9;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16rpx;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
   
 .sensor-value.abnormal {

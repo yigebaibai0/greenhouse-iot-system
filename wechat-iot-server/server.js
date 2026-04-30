@@ -11,21 +11,22 @@ const crypto = require('crypto');
 const http = require('http');
 const WebSocket = require('ws');
 
-// --- 基础配置 ---
+// --- 基础配置 (支持环境变量覆盖) ---
 const ONENET_CONFIG = {
     api_base_url: "https://iot-api.heclouds.com",
-    product_id: "YOUR_PRODUCT_ID",
-    auth_info: "YOUR_AUTH_INFO",
+    product_id: process.env.ONENET_PRODUCT_ID || "YOUR_PRODUCT_ID",
+    auth_info: process.env.ONENET_AUTH_INFO || "YOUR_AUTH_INFO",
     identifiers: { MOTOR: 'LED' },
 };
 
-const DB_CONFIG = { db_path: './greenhouse_data.db' };
+const DB_CONFIG = { db_path: process.env.DB_PATH || './greenhouse_data.db' };
 
-// --- 【新增】看门狗配置 ---
 const WATCHDOG_CONFIG = {
-    MAX_RETRIES: 10,       // 最大重试次数 (10次 x 10秒 = 100秒超时)
-    INTERVAL_MS: 10000,    // 每次检查/重发的间隔 (10秒)
+    MAX_RETRIES: 10,
+    INTERVAL_MS: 10000,
 };
+
+const ONENET_TIMEOUT_MS = 10000; // OneNET API 请求超时 (10秒)
 
 // 设备配置表
 const DEVICE_CONFIGS = {
@@ -111,32 +112,60 @@ db.serialize(() => {
     });
 });
 
-// --- 【新增】放在代码开头区域 ---
-function getLogTime() {
-    const now = new Date();
-    // 生成格式: 2024-12-17 12:30:05
-    return now.toLocaleString('zh-CN', { hour12: false });
+function getLocalTimestamp() {
+    return new Date().toLocaleString('zh-CN', { hour12: false });
 }
 
-// --- 【新增日志步骤2】写入日志的辅助函数 ---
+function getLocalISO() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 function logUserAction(req, deviceName, action, details) {
-    // 尝试获取真实IP (兼容反向代理和直连)
-    let ip = 'System'; // 默认为系统自动执行
+    let ip = 'System';
     if (req) {
         ip = req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress || 'Unknown';
-        if (ip.startsWith('::ffff:')) {
-            ip = ip.substr(7); // 去除IPv6前缀，只保留IPv4
-        }
+        if (ip.startsWith('::ffff:')) ip = ip.substr(7);
     }
-    
-    const timestamp = new Date().toISOString();
-    
+    const timestamp = getLocalISO();
     const stmt = db.prepare("INSERT INTO command_logs (timestamp, ip, deviceName, action, details) VALUES (?, ?, ?, ?, ?)");
     stmt.run(timestamp, ip, deviceName, action, details, (err) => {
         if (err) console.error(`[LOG] ❌ 写入日志失败:`, err.message);
         else console.log(`[LOG] 📝 [${ip}] ${deviceName} - ${action}: ${details}`);
     });
     stmt.finalize();
+}
+
+// 共用函数：计算电机位移 (Dead Reckoning)
+function calcMotorPosition(deviceName, motorChar, state) {
+    const now = Date.now();
+    const timeDelta = now - state.lastPollTime;
+    state.lastPollTime = now;
+    if (timeDelta > (POLL_INTERVAL_MS * 5)) return;
+    const deviceConfig = DEVICE_CONFIGS[deviceName];
+    if (!deviceConfig) return;
+    const totalTravelTime = (motorChar === 'A') ? deviceConfig.timeA : deviceConfig.timeB;
+    const positionChange = (timeDelta / totalTravelTime) * 100;
+    if (state.physicalState === '1') state.currentPosition = Math.min(100, state.currentPosition + positionChange);
+    else if (state.physicalState === '3') state.currentPosition = Math.max(0, state.currentPosition - positionChange);
+}
+
+// 共用函数：构建传感器数据查询
+function buildSensorQuery(params) {
+    const { deviceName, identifier, startDate, endDate } = params;
+    if (!startDate || !endDate) return null;
+    let startISO, endISO;
+    try {
+        startISO = new Date(startDate).toISOString();
+        endISO = new Date(endDate).toISOString();
+    } catch (e) { return null; }
+    let query = "SELECT * FROM sensor_data WHERE timestamp >= ? AND timestamp <= ?";
+    const queryParams = [startISO, endISO];
+    if (deviceName) { query += " AND deviceName = ?"; queryParams.push(deviceName); }
+    if (identifier) { query += " AND identifier = ?"; queryParams.push(identifier); }
+    query += " ORDER BY timestamp ASC";
+    return { query, params: queryParams };
 }
 
 
@@ -236,38 +265,6 @@ function loadMotorStatesFromDB() {
     }
 }
 
-// --- 【新增】当电机确认启动成功后，安排停止任务 ---
-// function scheduleStopTask(deviceName, motor, duration, stopCmd) {
-//     const motorChar = motor; 
-//     const motorKey = `motor${motorChar}`; 
-//     const timerKey = `${deviceName}-${motorChar}`;
-    
-//     console.log(`[TASK] ✅ ${deviceName}-${motorChar} 物理启动确认！开始计时: ${duration}秒`);
-
-//     // 1. 写入任务到数据库 (计算预计停止时间)
-//     const expectedStopTime = Date.now() + (duration * 1000);
-//     db.run("REPLACE INTO motor_tasks (key, deviceName, motor, stopCmd, expectedStopTime) VALUES (?, ?, ?, ?, ?)", 
-//         [timerKey, deviceName, motor, stopCmd, expectedStopTime], 
-//         (err) => {
-//             if (err) console.error(`[DB] ❌ 写入任务失败:`, err.message);
-//             // else console.log(`[DB] ✅ 任务已持久化`);
-//         }
-//     );
-
-//     // 2. 设置内存定时器
-//     if (activeTimers[timerKey]) clearTimeout(activeTimers[timerKey].timeoutId);
-    
-//     const timeoutId = setTimeout(() => {
-//         console.log(`[TIMER] ${deviceName}-${motorChar} 自动停止时间到。`);
-//         // 触发停止逻辑 (含停止看门狗)
-//         if (motorStates[deviceName]?.[motorKey]?.logicalState === 'running') {
-//             handleStopMotorLogic(deviceName, motorKey, stopCmd);
-//         }
-//     }, duration * 1000);
-    
-//     activeTimers[timerKey] = { timeoutId, stopCmd };
-// }
-// --- 【修改】scheduleStopTask 函数 ---
 function scheduleStopTask(deviceName, motor, duration, stopCmd) {
     const motorChar = motor; 
     const motorKey = `motor${motorChar}`; 
@@ -278,7 +275,7 @@ function scheduleStopTask(deviceName, motor, duration, stopCmd) {
     const endTimeStr = endTime.toLocaleString('zh-CN', { hour12: false });
 
     // 打印清晰的日志
-    console.log(`[${getLogTime()}] [⏳ 倒计时开始] ${deviceName}-${motorChar} 物理启动确认！将在 ${endTimeStr} 自动停止 (时长:${duration}s)`);
+    console.log(`[${getLocalTimestamp()}] [⏳ 倒计时开始] ${deviceName}-${motorChar} 物理启动确认！将在 ${endTimeStr} 自动停止 (时长:${duration}s)`);
 
     const expectedStopTime = endTime.getTime();
     db.run("REPLACE INTO motor_tasks (key, deviceName, motor, stopCmd, expectedStopTime) VALUES (?, ?, ?, ?, ?)", 
@@ -287,7 +284,7 @@ function scheduleStopTask(deviceName, motor, duration, stopCmd) {
     if (activeTimers[timerKey]) clearTimeout(activeTimers[timerKey].timeoutId);
     
     const timeoutId = setTimeout(() => {
-        console.log(`[${getLogTime()}] [⏰ 时间到] ${deviceName}-${motorChar} 触发自动停止逻辑`);
+        console.log(`[${getLocalTimestamp()}] [⏰ 时间到] ${deviceName}-${motorChar} 触发自动停止逻辑`);
         if (motorStates[deviceName]?.[motorKey]?.logicalState === 'running') {
             handleStopMotorLogic(deviceName, motorKey, stopCmd);
         }
@@ -373,59 +370,6 @@ async function runStopWatchdog(deviceName, motorKey, stopCmd, tryCount) {
     }, WATCHDOG_CONFIG.INTERVAL_MS);
 }
 
-// --- 修改后的停止逻辑（调用看门狗） ---
-// async function handleStopMotorLogic(deviceName, motorKey, stopCmd) {
-//     const motorChar = motorKey === 'motorA' ? 'A' : 'B';
-//     const timerKey = `${deviceName}-${motorChar}`;
-
-//     // 1. 清除内存中的定时器
-//     if (activeTimers[timerKey]) { 
-//         console.log(`[STATE] 触发停止，清除 ${timerKey} 定时器。`);
-//         clearTimeout(activeTimers[timerKey].timeoutId); 
-//         delete activeTimers[timerKey]; 
-//     }
-
-//     // 2. 无论结果如何，先从数据库移除任务
-//     db.run("DELETE FROM motor_tasks WHERE key = ?", [timerKey], (err) => {
-//         if(err) console.error(`[DB] ❌ 删除任务记录失败 ${timerKey}:`, err.message);
-//     });
-
-//     const state = motorStates[deviceName]?.[motorKey];
-//     if (!state) { console.error(`[STATE] 无法停止 ${deviceName}-${motorKey}，未找到状态。`); return { success: false }; }
-
-//     // 3. 计算位置 (Dead Reckoning)
-//     const now = Date.now();
-//     const timeDelta = now - state.lastPollTime;
-//     const deviceConfig = DEVICE_CONFIGS[deviceName];
-    
-//     if (deviceConfig) {
-//         const totalTravelTime = (motorChar === 'A') ? deviceConfig.timeA : deviceConfig.timeB;
-//         const positionChange = (timeDelta / totalTravelTime) * 100;
-
-//         if (state.logicalState === 'running') { 
-//             if (state.physicalState === '1') { 
-//                 state.currentPosition = Math.min(100, state.currentPosition + positionChange);
-//             } else if (state.physicalState === '3') { 
-//                 state.currentPosition = Math.max(0, state.currentPosition - positionChange);
-//             }
-//         }
-//     }
-
-//     // 4. 更新逻辑状态为 idle
-//     state.logicalState = 'idle';
-//     state.direction = '';
-    
-//     const finalPosition = state.currentPosition;
-//     savePositionToDB(deviceName, motorChar, finalPosition);
-
-//     // 5. 【核心】启动停止看门狗循环
-//     console.log(`[WATCHDOG] 🐕 启动 ${deviceName}-${motorChar} 停止确认循环...`);
-//     runStopWatchdog(deviceName, motorKey, stopCmd, 1);
-
-//     broadcastMotorStates(deviceName); 
-//     return { success: true };
-// }
-// --- 【修改】handleStopMotorLogic 函数 ---
 async function handleStopMotorLogic(deviceName, motorKey, stopCmd) {
     const motorChar = motorKey === 'motorA' ? 'A' : 'B';
     const timerKey = `${deviceName}-${motorChar}`;
@@ -435,23 +379,14 @@ async function handleStopMotorLogic(deviceName, motorKey, stopCmd) {
         delete activeTimers[timerKey]; 
     }
 
-    db.run("DELETE FROM motor_tasks WHERE key = ?", [timerKey], (err) => {});
+    db.run("DELETE FROM motor_tasks WHERE key = ?", [timerKey], (err) => {
+        if (err) console.error(`[DB] ❌ 删除任务记录失败 ${timerKey}:`, err.message);
+    });
 
     const state = motorStates[deviceName]?.[motorKey];
     if (!state) return { success: false };
 
-    // 位置计算逻辑保持不变
-    const now = Date.now();
-    const timeDelta = now - state.lastPollTime;
-    const deviceConfig = DEVICE_CONFIGS[deviceName];
-    if (deviceConfig) {
-        const totalTravelTime = (motorChar === 'A') ? deviceConfig.timeA : deviceConfig.timeB;
-        const positionChange = (timeDelta / totalTravelTime) * 100;
-        if (state.logicalState === 'running') { 
-            if (state.physicalState === '1') state.currentPosition = Math.min(100, state.currentPosition + positionChange);
-            else if (state.physicalState === '3') state.currentPosition = Math.max(0, state.currentPosition - positionChange);
-        }
-    }
+    calcMotorPosition(deviceName, motorChar, state);
 
     state.logicalState = 'idle';
     state.direction = '';
@@ -459,7 +394,7 @@ async function handleStopMotorLogic(deviceName, motorKey, stopCmd) {
     savePositionToDB(deviceName, motorChar, state.currentPosition);
 
     // 【修改点】增加了带时间的日志
-    console.log(`[${getLogTime()}] [🛑 执行停止] ${deviceName}-${motorChar} 发送停止指令 [${stopCmd}]`);
+    console.log(`[${getLocalTimestamp()}] [🛑 执行停止] ${deviceName}-${motorChar} 发送停止指令 [${stopCmd}]`);
     
     runStopWatchdog(deviceName, motorKey, stopCmd, 1);
     broadcastMotorStates(deviceName); 
@@ -467,13 +402,13 @@ async function handleStopMotorLogic(deviceName, motorKey, stopCmd) {
 }
 
 async function fetchAndStoreSensorData() {
-    const timestampISO = new Date().toISOString();
+    const timestampISO = getLocalISO();
     const headers = { 'Authorization': ONENET_CONFIG.auth_info };
     const stmt = db.prepare("INSERT OR IGNORE INTO sensor_data (deviceName, identifier, timestamp, value) VALUES (?, ?, ?, ?)");
     for (const deviceName of DEVICES_TO_SYNC) {
         const url = `${ONENET_CONFIG.api_base_url}/thingmodel/query-device-property?product_id=${ONENET_CONFIG.product_id}&device_name=${deviceName}`;
         try {
-            const response = await axios.get(url, { headers });
+            const response = await axios.get(url, { headers, timeout: ONENET_TIMEOUT_MS });
             if (response.data.code === 0 && response.data.data) {
                 for (const item of response.data.data) {
                     const identifier = item.identifier;
@@ -499,7 +434,7 @@ async function sendCommandToOneNET(deviceName, command) {
     const headers = { 'Authorization': ONENET_CONFIG.auth_info };
     const data = { product_id: ONENET_CONFIG.product_id, device_name: deviceName, params: { [ONENET_CONFIG.identifiers.MOTOR]: command } };
     try {
-        const response = await axios.post(url, data, { headers });
+        const response = await axios.post(url, data, { headers, timeout: ONENET_TIMEOUT_MS });
         if (response.data.code === 0 && response.data.msg === 'succ') return true;
         else {
             console.error(`[CMD_SEND] ❌ OneNET 返回错误:`, JSON.stringify(response.data));
@@ -514,56 +449,25 @@ async function sendCommandToOneNET(deviceName, command) {
 async function queryDeviceStatus(deviceName) {
     const url = `${ONENET_CONFIG.api_base_url}/device/detail?product_id=${ONENET_CONFIG.product_id}&device_name=${deviceName}`;
     try {
-        const response = await axios.get(url, { headers: { 'Authorization': ONENET_CONFIG.auth_info } });
+        const response = await axios.get(url, { headers: { 'Authorization': ONENET_CONFIG.auth_info }, timeout: ONENET_TIMEOUT_MS });
         return response.data.code === 0 && response.data.data && response.data.data.status === 1;
     } catch (error) { return false; }
 }
 
 function cleanOldData() {
-    const threeMonthsAgoISO = new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString();
-    db.run("DELETE FROM sensor_data WHERE timestamp < ?", [threeMonthsAgoISO]);
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    db.run("DELETE FROM sensor_data WHERE timestamp < ?", [threeMonthsAgo.toISOString()]);
 
-
-    // --- 【新增步骤 5】清理旧日志 ---
-    const oneMonthAgo = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString();
-    db.run("DELETE FROM command_logs WHERE timestamp < ?", [oneMonthAgo], (err) => {
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+    db.run("DELETE FROM command_logs WHERE timestamp < ?", [oneMonthAgo.toISOString()], (err) => {
         if (!err) console.log("✅ 已自动清理30天前的操作日志");
     });
 }
 
-// --- 【新增功能】系统级兜底停止机制 ---
-// function runFailsafeStopRoutine() {
-//     console.log('[FAILSAFE] 🛡️ 启动每小时强制停止兜底机制...');
-    
-//     // 遍历所有设备
-//     DEVICES_TO_SYNC.forEach(deviceName => {
-//         // 定义该设备的4个停止指令序列，每个间隔60秒 (60000ms)
-//         // 指令码来自于 COMMANDS_MAP 
-//         // 上通风关停止(BB12G), 上通风开停止(DD12G), 下通风关停止(FF12G), 下通风开停止(HH12G)
-//         const stopSequence = [
-//             { cmd: 'BB12G', desc: '上通风口关停止', delay: 0 },
-//             { cmd: 'DD12G', desc: '上通风口开停止', delay: 60000 },
-//             { cmd: 'FF12G', desc: '下通风口关停止', delay: 120000 },
-//             { cmd: 'HH12G', desc: '下通风口开停止', delay: 180000 }
-//         ];
-
-//         // 依次设置定时器发送指令
-//         stopSequence.forEach(step => {
-//             setTimeout(async () => {
-//                 console.log(`[FAILSAFE] 🛡️ 对 ${deviceName} 执行兜底: ${step.desc}`);
-//                 // 发送指令（这里不走 handleStopMotorLogic，而是直接发送物理指令以确保送达）
-//                 await sendCommandToOneNET(deviceName, step.cmd);
-                
-//                 // 可选：记录到系统日志
-//                 // logUserAction(null, deviceName, '系统兜底', step.desc);
-//             }, step.delay);
-//         });
-//     });
-// }
-
-// --- runFailsafeStopRoutine 函数 (接入看门狗机制) ---
 function runFailsafeStopRoutine() {
-    console.log(`[${getLogTime()}] [🛡️ 系统兜底] 开始执行每小时强制停止检查...`);
+    console.log(`[${getLocalTimestamp()}] [🛡️ 系统兜底] 开始执行每小时强制停止检查...`);
     
     DEVICES_TO_SYNC.forEach(deviceName => {
         // 我们给每个步骤增加了 'motorKey' 字段，告诉看门狗要监视哪个电机
@@ -576,7 +480,7 @@ function runFailsafeStopRoutine() {
 
         stopSequence.forEach(step => {
             setTimeout(() => {
-                console.log(`[${getLogTime()}] [🛡️ 兜底执行] ${deviceName} -> 启动看门狗验证: ${step.desc}`);
+                console.log(`[${getLocalTimestamp()}] [🛡️ 兜底执行] ${deviceName} -> 启动看门狗验证: ${step.desc}`);
                 
                 // 【核心修改】这里不再直接发送指令，而是调用看门狗
                 // 参数: (设备名, 电机Key, 停止指令, 第1次尝试)
@@ -608,34 +512,22 @@ async function fetchDeviceProperties(deviceName) {
     const headers = { 'Authorization': ONENET_CONFIG.auth_info };
     let properties = { motor1: 'unknown', motor2: 'unknown' };
     try {
-        const response = await axios.get(url, { headers });
+        const response = await axios.get(url, { headers, timeout: ONENET_TIMEOUT_MS });
         if (response.data.code === 0 && response.data.data) {
             for (const item of response.data.data) {
                 if (item.identifier === 'motor1') properties.motor1 = String(item.value);
                 else if (item.identifier === 'motor2') properties.motor2 = String(item.value);
             }
         }
-    } catch (error) {}
+    } catch (error) {
+        console.error(`[POLL] ❌ 查询 ${deviceName} 电机状态失败:`, error.message);
+    }
     return properties;
 }
 
 function processMotor(deviceName, motorChar, physicalValue, state) {
-    const now = Date.now();
-    const lastPollTime = state.lastPollTime;
-    const timeDelta = now - lastPollTime;
-    state.lastPollTime = now;
     state.physicalState = physicalValue;
-    
-    // 如果轮询间隔太久，不进行位移计算
-    if (timeDelta > (POLL_INTERVAL_MS * 5)) return;
-
-    const deviceConfig = DEVICE_CONFIGS[deviceName];
-    if (!deviceConfig) return;
-    const totalTravelTime = (motorChar === 'A') ? deviceConfig.timeA : deviceConfig.timeB;
-    const positionChange = (timeDelta / totalTravelTime) * 100;
-
-    if (physicalValue === '1') state.currentPosition = Math.min(100, state.currentPosition + positionChange);
-    else if (physicalValue === '3') state.currentPosition = Math.max(0, state.currentPosition - positionChange);
+    calcMotorPosition(deviceName, motorChar, state);
 }
 
 function startProgressPolling() {
@@ -713,7 +605,7 @@ app.post('/api/start-timed-motor', async (req, res) => {
     // 计算预计结束时间，方便查看
     const expectedEndTime = new Date(Date.now() + validatedDuration * 1000).toLocaleString('zh-CN', { hour12: false });
 
-    console.log(`[${getLogTime()}] [🚀 用户指令] ${deviceName} ${ventName} ${actionName} (时长:${validatedDuration}秒) -> 预计结束: ${expectedEndTime}`);
+    console.log(`[${getLocalTimestamp()}] [🚀 用户指令] ${deviceName} ${ventName} ${actionName} (时长:${validatedDuration}秒) -> 预计结束: ${expectedEndTime}`);
     
     logUserAction(req, deviceName, '启动指令', `${ventName}${actionName} (时长${validatedDuration}秒)`);
 
@@ -838,38 +730,19 @@ app.get('/api/logs', (req, res) => {
 
 
 app.get('/api/data', (req, res) => {
-    const { deviceName, identifier, startDate, endDate } = req.query;
-    if (!startDate || !endDate) return res.status(400).json({ success: false, message: '必须提供 startDate 和 endDate' });
-    let query = "SELECT * FROM sensor_data WHERE timestamp >= ? AND timestamp <= ?";
-    let startISO, endISO;
-    try {
-        startISO = new Date(startDate).toISOString();
-        endISO = new Date(endDate).toISOString();
-    } catch (e) { return res.status(400).json({ success: false, message: '无效的日期格式' }); }
-    const params = [startISO, endISO];
-    if (deviceName) { query += " AND deviceName = ?"; params.push(deviceName); }
-    if (identifier) { query += " AND identifier = ?"; params.push(identifier); }
-    query += " ORDER BY timestamp ASC";
-    db.all(query, params, (err, rows) => {
+    const result = buildSensorQuery(req.query);
+    if (!result) return res.status(400).json({ success: false, message: '必须提供 startDate 和 endDate (日期格式无效)' });
+    db.all(result.query, result.params, (err, rows) => {
         if (err) return res.status(500).json({ success: false, message: '查询数据失败', error: err.message });
         res.status(200).json({ success: true, data: rows });
     });
 });
 
 app.get('/api/export', (req, res) => {
-    const { deviceName, identifier, startDate, endDate } = req.query;
-    if (!startDate || !endDate) return res.status(400).json({ success: false, message: '必须提供 startDate 和 endDate' });
-    let query = "SELECT * FROM sensor_data WHERE timestamp >= ? AND timestamp <= ?";
-     let startISO, endISO;
-    try {
-        startISO = new Date(startDate).toISOString();
-        endISO = new Date(endDate).toISOString();
-    } catch (e) { return res.status(400).send('无效的日期格式'); }
-    const params = [startISO, endISO];
-    if (deviceName) { query += " AND deviceName = ?"; params.push(deviceName); }
-    if (identifier) { query += " AND identifier = ?"; params.push(identifier); }
-    query += " ORDER BY timestamp ASC";
-    db.all(query, params, (err, rows) => {
+    const { deviceName, startDate, endDate } = req.query;
+    const result = buildSensorQuery(req.query);
+    if (!result) return res.status(400).send('必须提供 startDate 和 endDate (日期格式无效)');
+    db.all(result.query, result.params, (err, rows) => {
         if (err) return res.status(500).send('查询DB导出失败: ' + err.message);
         if (rows.length === 0) return res.status(404).send('指定范围内无数据');
         const fields = ['deviceName', 'identifier', 'value', 'timestamp'];
@@ -890,7 +763,7 @@ app.get('/api/export', (req, res) => {
     });
 });
 
-const PORT = 8081;
+const PORT = process.env.PORT || 8081;
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
@@ -938,29 +811,16 @@ function broadcastMotorStates(deviceName) {
 }
 
 function formatClientState(motorChar, state) {
-    let physicalStateText = '状态未知';
-    const physState = state.physicalState || 'unknown'; 
-    
-    if (motorChar === 'A') {
-        switch(physState) {
-            case '1': physicalStateText = '上通风口开运行状态'; break;
-            case '2': physicalStateText = '上通风口开停止状态'; break;
-            case '3': physicalStateText = '上通风口关运行状态'; break;
-            case '4': physicalStateText = '上通风口关停止状态'; break;
-        }
-    } else { 
-        switch(physState) {
-            case '1': physicalStateText = '下通风口开运行状态'; break;
-            case '2': physicalStateText = '下通风口开停止状态'; break;
-            case '3': physicalStateText = '下通风口关运行状态'; break;
-            case '4': physicalStateText = '下通风口关停止状态'; break;
-        }
-    }
-    
+    const physState = state.physicalState || 'unknown';
+    const prefix = motorChar === 'A' ? '上通风口' : '下通风口';
+    const stateTexts = {
+        '1': `${prefix}开运行状态`, '2': `${prefix}开停止状态`,
+        '3': `${prefix}关运行状态`, '4': `${prefix}关停止状态`,
+    };
     return {
         isRunning: (state.logicalState === 'running'),
-        physicalState: physState, 
-        physicalStateText: physicalStateText, 
+        physicalState: physState,
+        physicalStateText: stateTexts[physState] || '状态未知',
         currentPosition: Math.floor(state.currentPosition)
     };
 }

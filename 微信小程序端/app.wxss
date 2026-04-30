@@ -1,10 +1,12 @@
-/**app.wxss**/
-.container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 200rpx 0;
-  box-sizing: border-box;
-} 
+page {
+  --primary: #3d7ef9;
+  --primary-dark: #2563eb;
+  --success: #28a745;
+  --warning: #f9ae3d;
+  --danger: #dc3545;
+  --gray: #6c757d;
+  --bg: #f7f8fa;
+  --text: #333;
+  --text-secondary: #666;
+  --border: #f0f0f0;
+}
